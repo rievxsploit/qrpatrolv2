@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QR Patrol</title>
+<style>
+  /* Reset and base */
+  * {
+    box-sizing: border-box;
+  }
+  body, html {
+    margin: 0; 
+    padding: 0; 
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #f5f7fa;
+    color: #333;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background-color: #1976d2;
+    color: white;
+    padding: 1rem;
+    text-align: center;
+    font-weight: 700;
+    font-size: 1.5rem;
+  }
+  main {
+    flex: 1;
+    padding: 1rem;
+    max-width: 480px;
+    margin: auto;
+    width: 100%;
+  }
+  section {
+    background: white;
+    border-radius: 8px;
+    padding: 1rem;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.1);
+    margin-bottom: 1rem;
+  }
+  button {
+    background-color: #1976d2;
+    border: none;
+    color: white;
+    padding: 0.6rem 1.2rem;
+    font-size: 1rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-top: 0.25rem;
+  }
+  button:disabled {
+    background-color: #90caf9;
+    cursor: not-allowed;
+  }
+  button:hover:not(:disabled) {
+    background-color: #0d47a1;
+  }
+  input[type=email], input[type=password] {
+    width: 100%;
+    padding: 0.5rem;
+    margin: 0.25rem 0 1rem 0;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-size: 1rem;
+  }
+  label {
+    font-weight: 600;
+  }
+  #login-form {
+    display: flex;
+    flex-direction: column;
+  }
+  #message {
+    margin: 0.5rem 0 1rem 0;
+    color: red;
+    min-height: 1.2rem;
+  }
+  #user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  #logout-btn {
+    background: #e53935;
+  }
+  #scanner {
+    width: 100%;
+    overflow: hidden;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+  }
+  #history-list {
+    max-height: 300px;
+    overflow-y: auto;
+  }
+  .scan-item {
+    padding: 0.5rem;
+    border-bottom: 1px solid #eee;
+  }
+  .scan-item:last-child {
+    border-bottom: none;
+  }
+  .scan-time {
+    color: #555;
+    font-size: 0.85rem;
+  }
+  .scan-location {
+    font-size: 0.9rem;
+    color: #1976d2;
+  }
+  @media (max-width: 600px) {
+    main {
+      padding: 0.5rem;
+      max-width: 100vw;
+      border-radius: 0;
+      box-shadow: none;
+    }
+  }
+</style>
+</head>
+<body>
+<header>QR Patrol</header>
+<main>
+  <section id="auth-section">
+    <form id="login-form">
+      <label for="email">Email</label>
+      <input type="email" id="email" required placeholder="you@example.com" />
+      <label for="password">Password</label>
+      <input type="password" id="password" required placeholder="Password" minlength="6" />
+      <button type="submit" id="login-btn">Login</button>
+    </form>
+    <div id="message" aria-live="polite"></div>
+  </section>
+
+  <section id="app-section" style="display:none;">
+    <div id="user-info">
+      <div>Logged in as <span id="user-email"></span></div>
+      <button id="logout-btn">Logout</button>
+    </div>
+
+    <div id="scanner"></div>
+    <button id="start-scan-btn">Start Scan</button>
+    <button id="stop-scan-btn" style="display:none;">Stop Scan</button>
+
+    <section id="scan-status" style="margin-top: 1rem; min-height: 1.2rem;"></section>
+
+    <h3>Scan History</h3>
+    <button id="export-csv-btn">Export to CSV</button>
+    <section id="history-list">Loading...</section>
+  </section>
+</main>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+<!-- html5-qrcode CDN -->
+<script src="https://unpkg.com/html5-qrcode@2.3.12/html5-qrcode.min.js"></script>
+
+<script>
+  // Firebase configuration
+  // TODO: Replace below config with your Firebase project config
+  const firebaseConfig = {
+    apiKey: "YOUR_API_KEY_HERE",
+    authDomain: "YOUR_AUTH_DOMAIN_HERE",
+    projectId: "YOUR_PROJECT_ID_HERE",
+    storageBucket: "YOUR_STORAGE_BUCKET_HERE",
+    messagingSenderId: "YOUR_SENDER_ID_HERE",
+    appId: "YOUR_APP_ID_HERE"
+  };
+
+  // Initialize Firebase
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  const db = firebase.firestore();
+
+  // UI elements
+  const loginForm = document.getElementById('login-form');
+  const emailInput = document.getElementById('email');
+  const passwordInput = document.getElementById('password');
+  const loginBtn = document.getElementById('login-btn');
+  const messageEl = document.getElementById('message');
+
+  const authSection = document.getElementById('auth-section');
+  const appSection = document.getElementById('app-section');
+  const userEmailSpan = document.getElementById('user-email');
+  const logoutBtn = document.getElementById('logout-btn');
+
+  const scannerDiv = document.getElementById('scanner');
+  const startScanBtn = document.getElementById('start-scan-btn');
+  const stopScanBtn = document.getElementById('stop-scan-btn');
+  const scanStatusDiv = document.getElementById('scan-status');
+  const historyList = document.getElementById('history-list');
+  const exportCsvBtn = document.getElementById('export-csv-btn');
+
+  let html5QrcodeScanner = null;
+  let scanning = false;
+
+  // Show error/success messages
+  function showMessage(msg, isError = true) {
+    messageEl.style.color = isError ? 'red' : 'green';
+    messageEl.textContent = msg;
+  }
+
+  // Clear message
+  function clearMessage() {
+    messageEl.textContent = '';
+  }
+
+  // Setup UI after login
+  function setupUI(user) {
+    userEmailSpan.textContent = user.email;
+    authSection.style.display = 'none';
+    appSection.style.display = 'block';
+    clearMessage();
+    loadScanHistory(user.uid);
+  }
+
+  // Listen for auth state changes
+  auth.onAuthStateChanged(user => {
+    if (user) {
+      setupUI(user);
+    } else {
+      appSection.style.display = 'none';
+      authSection.style.display = 'block';
+    }
+  });
+
+  // Login form submit handler
+  loginForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    loginBtn.disabled = true;
+    clearMessage();
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    try {
+      await auth.signInWithEmailAndPassword(email, password);
+    } catch (error) {
+      showMessage(error.message);
+    }
+
+    loginBtn.disabled = false;
+  });
+
+  // Logout button click
+  logoutBtn.addEventListener('click', () => {
+    if (html5QrcodeScanner) {
+      stopQrScanner();
+    }
+    auth.signOut();
+  });
+
+  // Start scan button
+  startScanBtn.addEventListener('click', () => {
+    startQrScanner();
+  });
+
+  // Stop scan button
+  stopScanBtn.addEventListener('click', () => {
+    stopQrScanner();
+  });
+
+  // Export CSV button
+  exportCsvBtn.addEventListener('click', () => {
+    exportScanHistoryToCSV();
+  });
+
+  // Start QR scanner function
+  function startQrScanner() {
+    if (scanning) return;
+
+    scanStatusDiv.textContent = '';
+    startScanBtn.style.display = 'none';
+    stopScanBtn.style.display = 'inline-block';
+    scannerDiv.innerHTML = '';
+    scanning = true;
+
+    html5QrcodeScanner = new Html5Qrcode("scanner");
+
+    const config = { fps: 10, qrbox: 250 };
+
+    html5QrcodeScanner.start(
+      { facingMode: "environment" },
+      config,
+      onScanSuccess,
+      onScanFailure
+    ).catch(err => {
+      showMessage('Could not start camera: ' + err.message);
+      stopQrScanner();
+    });
+  }
+
+  // Stop QR scanner function
+  function stopQrScanner() {
+    if (!scanning) return;
+
+    startScanBtn.style.display = 'inline-block';
+    stopScanBtn.style.display = 'none';
+    scanStatusDiv.textContent = '';
+    scanning = false;
+
+    if (html5QrcodeScanner) {
+      html5QrcodeScanner.stop().then(() => {
+        html5QrcodeScanner.clear();
+        scannerDiv.innerHTML = '';
+        html5QrcodeScanner = null;
+      }).catch(err => {
+        console.warn('Failed to stop QR scanner: ', err);
+      });
+    }
+  }
+
+  // On successful scan handler
+  async function onScanSuccess(decodedText, decodedResult) {
+    stopQrScanner();
+    scanStatusDiv.textContent = 'Scan successful! Saving...';
+
+    try {
+      // Get user id
+      const user = auth.currentUser;
+      if (!user) throw new Error('User not authenticated');
+
+      // Get geolocation coordinates
+      const position = await getCurrentPosition();
+
+      // Create scan record
+      const scanRecord = {
+        qrText: decodedText,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        userId: user.uid,
+        userEmail: user.email,
+        location: position ? new firebase.firestore.GeoPoint(position.coords.latitude, position.coords.longitude) : null,
+      };
+
+      // Save to Firestore
+      await db.collection('scans').add(scanRecord);
+      scanStatusDiv.textContent = 'Scan saved successfully!';
+
+      // Reload history
+      loadScanHistory(user.uid);
+
+    } catch (error) {
+      scanStatusDiv.textContent = '';
+      showMessage('Error saving scan: ' + error.message);
+    }
+  }
+
+  // On scan failure handler
+  function onScanFailure(error) {
+    // You may show scan failure warnings/ignore
+    // console.warn(`Scan failure: ${error}`);
+  }
+
+  // Get current position as Promise
+  function getCurrentPosition() {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        resolve(null);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(resolve, err => {
+        resolve(null);
+      }, { enableHighAccuracy: true, timeout: 5000 });
+    });
+  }
+
+  // Load scan history for a user
+  function loadScanHistory(userId) {
+    historyList.innerHTML = 'Loading...';
+
+    db.collection('scans')
+      .where('userId', '==', userId)
+      .orderBy('timestamp', 'desc')
+      .limit(20)
+      .onSnapshot(snapshot => {
+        if (snapshot.empty) {
+          historyList.innerHTML = '<p>No scan history found.</p>';
+          return;
+        }
+        let html = '';
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const timestamp = data.timestamp ? data.timestamp.toDate() : null;
+          const timeStr = timestamp ? timestamp.toLocaleString() : '-';
+          const lat = data.location ? data.location.latitude.toFixed(6) : '-';
+          const lng = data.location ? data.location.longitude.toFixed(6) : '-';
+
+          html += `
+            <div class="scan-item">
+              <div><strong>QR Content:</strong> ${escapeHtml(data.qrText)}</div>
+              <div class="scan-time">Time: ${timeStr}</div>
+              <div class="scan-location">Location: ${lat}, ${lng}</div>
+            </div>
+          `;
+        });
+        historyList.innerHTML = html;
+      }, err => {
+        historyList.innerHTML = '<p>Error loading history: ' + escapeHtml(err.message) + '</p>';
+      });
+  }
+
+  // Export scan history to CSV
+  async function exportScanHistoryToCSV() {
+    const user = auth.currentUser;
+    if (!user) {
+      showMessage('User not authenticated');
+      return;
+    }
+    try {
+      exportCsvBtn.disabled = true;
+      exportCsvBtn.textContent = 'Exporting...';
+      clearMessage();
+
+      const snapshot = await db.collection('scans')
+        .where('userId', '==', user.uid)
+        .orderBy('timestamp', 'desc')
+        .get();
+
+      if (snapshot.empty) {
+        showMessage('No scan data to export', false);
+        exportCsvBtn.disabled = false;
+        exportCsvBtn.textContent = 'Export to CSV';
+        return;
+      }
+
+      const rows = [];
+      // Header row
+      rows.push(['QR Content', 'Timestamp', 'Latitude', 'Longitude']);
+
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        const timestamp = data.timestamp ? data.timestamp.toDate().toLocaleString() : '';
+        const lat = data.location ? data.location.latitude.toFixed(6) : '';
+        const lng = data.location ? data.location.longitude.toFixed(6) : '';
+        rows.push([data.qrText, timestamp, lat, lng]);
+      });
+
+      // Convert rows to CSV string
+      const csvContent = rows.map(e => e.map(csvEscape).join(",")).join("\n");
+
+      // Create Blob and trigger download
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const dateStr = new Date().toISOString().slice(0,10);
+      a.download = `qrpatrol_scan_history_${dateStr}.csv`;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      exportCsvBtn.textContent = 'Export to CSV';
+      exportCsvBtn.disabled = false;
+      showMessage('Export successful!', false);
+    } catch (error) {
+      exportCsvBtn.textContent = 'Export to CSV';
+      exportCsvBtn.disabled = false;
+      showMessage('Export failed: ' + error.message);
+    }
+  }
+
+  // Escape CSV field according to CSV rules
+  function csvEscape(field) {
+    if (field == null) return '';
+    const str = String(field);
+    if (str.includes('"') || str.includes(',') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  }
+
+  // Simple escape HTML utility to avoid injection
+  function escapeHtml(text) {
+    if (!text) return '';
+    return text.replace(/[&<>"']/g, function(m) {
+      switch (m) {
+        case '&': return '&amp;';
+        case '<': return '&lt;';
+        case '>': return '&gt;';
+        case '"': return '&quot;';
+        case "'": return '&#39;';
+        default: return m;
+      }
+    });
+  }
+</script>
+</body>
+</html>
