@@ -87,11 +87,14 @@
   #logout-btn {
     background: #e53935;
   }
+  /* Camera scanner container: fixed min height for visibility */
   #scanner {
     width: 100%;
     overflow: hidden;
     border-radius: 8px;
     margin-bottom: 1rem;
+    min-height: 300px; /* Ensure height so camera video is visible */
+    background-color: #000; /* black background for camera */
   }
   #history-list {
     max-height: 300px;
@@ -128,9 +131,9 @@
   <section id="auth-section">
     <form id="login-form">
       <label for="email">Email</label>
-      <input type="email" id="email" required placeholder="you@example.com" />
+      <input type="email" id="email" required placeholder="you@example.com" autocomplete="username"/>
       <label for="password">Password</label>
-      <input type="password" id="password" required placeholder="Password" minlength="6" />
+      <input type="password" id="password" required placeholder="Password" minlength="6" autocomplete="current-password"/>
       <button type="submit" id="login-btn">Login</button>
     </form>
     <div id="message" aria-live="polite"></div>
@@ -166,13 +169,12 @@
   // Firebase configuration
   // TODO: Replace below config with your Firebase project config
   const firebaseConfig = {
-    apiKey: "AIzaSyCZqQGh2kXFZ7ARcJi3mD-kXYGhysqet2Y",
-  authDomain: "qrpatrolv2.firebaseapp.com",
-  projectId: "qrpatrolv2",
-  storageBucket: "qrpatrolv2.firebasestorage.app",
-  messagingSenderId: "910596893170",
-  appId: "1:910596893170:web:c44ae1335d0f2b8f6fe36b",
-  measurementId: "G-JKWLJH0CP4"
+    apiKey: "YOUR_API_KEY_HERE",
+    authDomain: "YOUR_AUTH_DOMAIN_HERE",
+    projectId: "YOUR_PROJECT_ID_HERE",
+    storageBucket: "YOUR_STORAGE_BUCKET_HERE",
+    messagingSenderId: "YOUR_SENDER_ID_HERE",
+    appId: "YOUR_APP_ID_HERE"
   };
 
   // Initialize Firebase
@@ -206,6 +208,7 @@
   function showMessage(msg, isError = true) {
     messageEl.style.color = isError ? 'red' : 'green';
     messageEl.textContent = msg;
+    console.log((isError ? 'Error: ' : 'Info: ') + msg);
   }
 
   // Clear message
@@ -285,14 +288,16 @@
 
     html5QrcodeScanner = new Html5Qrcode("scanner");
 
-    const config = { fps: 10, qrbox: 250 };
+    const config = { fps: 10, qrbox: {width: 250, height: 250} };
 
     html5QrcodeScanner.start(
       { facingMode: "environment" },
       config,
       onScanSuccess,
       onScanFailure
-    ).catch(err => {
+    ).then(() => {
+      showMessage('Camera started. Point camera to QR code.', false);
+    }).catch(err => {
       showMessage('Could not start camera: ' + err.message);
       stopQrScanner();
     });
@@ -324,14 +329,11 @@
     scanStatusDiv.textContent = 'Scan successful! Saving...';
 
     try {
-      // Get user id
       const user = auth.currentUser;
       if (!user) throw new Error('User not authenticated');
 
-      // Get geolocation coordinates
       const position = await getCurrentPosition();
 
-      // Create scan record
       const scanRecord = {
         qrText: decodedText,
         timestamp: firebase.firestore.FieldValue.serverTimestamp(),
@@ -340,13 +342,10 @@
         location: position ? new firebase.firestore.GeoPoint(position.coords.latitude, position.coords.longitude) : null,
       };
 
-      // Save to Firestore
       await db.collection('scans').add(scanRecord);
       scanStatusDiv.textContent = 'Scan saved successfully!';
 
-      // Reload history
       loadScanHistory(user.uid);
-
     } catch (error) {
       scanStatusDiv.textContent = '';
       showMessage('Error saving scan: ' + error.message);
@@ -355,7 +354,7 @@
 
   // On scan failure handler
   function onScanFailure(error) {
-    // You may show scan failure warnings/ignore
+    // can log scan failures if needed
     // console.warn(`Scan failure: ${error}`);
   }
 
