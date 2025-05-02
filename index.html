@@ -169,7 +169,7 @@
   // Firebase configuration
   // TODO: Replace below config with your Firebase project config
   const firebaseConfig = {
-    apiKey: "AIzaSyCZqQGh2kXFZ7ARcJi3mD-kXYGhysqet2Y",
+apiKey: "AIzaSyCZqQGh2kXFZ7ARcJi3mD-kXYGhysqet2Y",
   authDomain: "qrpatrolv2.firebaseapp.com",
   projectId: "qrpatrolv2",
   storageBucket: "qrpatrolv2.firebasestorage.app",
@@ -291,8 +291,9 @@
 
     const config = { fps: 10, qrbox: {width: 250, height: 250} };
 
+    // Use exact constraint facingMode: "environment" for back camera
     html5QrcodeScanner.start(
-      { facingMode: "environment" },
+      { facingMode: { exact: "environment" } },
       config,
       onScanSuccess,
       onScanFailure
