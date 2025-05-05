@@ -4,208 +4,34 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>QR Patrol</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    body {
-      margin: 0;
-      font-family: sans-serif;
-      background-color: #f5f5f5;
-    }
-    .container {
-      max-width: 480px;
-      margin: auto;
-      padding: 20px;
-    }
-    .card {
-      background: white;
-      padding: 20px;
-      margin-bottom: 20px;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    }
-    input, button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 10px;
-      border-radius: 8px;
-      border: 1px solid #ccc;
-      font-size: 1rem;
-    }
-    button {
-      background-color: #007bff;
-      color: white;
-      border: none;
-    }
-    #qr-reader {
-      width: 100%;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-    }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: left;
-    }
-    th {
-      background-color: #f2f2f2;
-    }
-  </style>
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+  <script defer src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+  <script defer src="https://unpkg.com/html5-qrcode"></script>
+  <script defer src="firebase-config.js"></script>
+  <script defer src="app.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-  <div class="container">
-    <div class="card" id="auth-section">
-      <h2>Login</h2>
-      <input type="email" id="email" placeholder="Email" />
-      <input type="password" id="password" placeholder="Password" />
-      <button onclick="login()">Login</button>
-      <button onclick="register()">Register</button>
-    </div>
-
-    <div class="card" id="scan-section" style="display:none">
-      <h2>Scan QR Code</h2>
-      <div id="qr-reader"></div>
-      <p id="scan-result"></p>
-      <button onclick="toggleFlash()">Toggle Flash</button>
-      <button onclick="logout()">Logout</button>
-      <button onclick="downloadLogs()">Download Logs</button>
-      <h3>Log Patroli</h3>
-      <table id="log-table">
-        <thead><tr><th>Data</th><th>Waktu</th></tr></thead>
-        <tbody></tbody>
-      </table>
+<body class="bg-gray-100 text-gray-800">
+  <div id="login-screen" class="min-h-screen flex flex-col justify-center items-center p-4">
+    <div class="w-full max-w-sm bg-white rounded-xl shadow-md p-6">
+      <h2 class="text-2xl font-bold mb-4 text-center">Login QR Patrol</h2>
+      <input id="email" type="email" placeholder="Email" class="w-full p-2 border rounded mb-2" />
+      <input id="password" type="password" placeholder="Password" class="w-full p-2 border rounded mb-4" />
+      <button id="login-btn" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700">Login</button>
+      <p id="login-error" class="text-red-600 text-sm mt-2 hidden">Login failed.</p>
     </div>
   </div>
 
-  <script>
-    const firebaseConfig = {
-  apiKey: "AIzaSyCZqQGh2kXFZ7ARcJi3mD-kXYGhysqet2Y",
-  authDomain: "qrpatrolv2.firebaseapp.com",
-  projectId: "qrpatrolv2",
-  storageBucket: "qrpatrolv2.firebasestorage.app",
-  messagingSenderId: "910596893170",
-  appId: "1:910596893170:web:c44ae1335d0f2b8f6fe36b",
-  measurementId: "G-JKWLJH0CP4"
-    };
-
-    firebase.initializeApp(firebaseConfig);
-    const auth = firebase.auth();
-    const db = firebase.firestore();
-
-    let qrScanner;
-    let flashOn = false;
-
-    auth.onAuthStateChanged(user => {
-      if (user) {
-        document.getElementById('auth-section').style.display = 'none';
-        document.getElementById('scan-section').style.display = 'block';
-        startScanner();
-        loadLogs();
-      } else {
-        document.getElementById('auth-section').style.display = 'block';
-        document.getElementById('scan-section').style.display = 'none';
-        if (qrScanner) qrScanner.stop();
-      }
-    });
-
-    function login() {
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      auth.signInWithEmailAndPassword(email, password)
-        .catch(alert);
-    }
-
-    function register() {
-      const email = document.getElementById('email').value;
-      const password = document.getElementById('password').value;
-      auth.createUserWithEmailAndPassword(email, password)
-        .catch(alert);
-    }
-
-    function logout() {
-      auth.signOut();
-    }
-
-    function startScanner() {
-      qrScanner = new Html5Qrcode("qr-reader");
-      qrScanner.start(
-        { facingMode: { exact: "environment" } },
-        { fps: 10, qrbox: 250, disableFlip: true },
-        qrCodeMessage => {
-          document.getElementById('scan-result').textContent = `Scanned: ${qrCodeMessage}`;
-          saveScanLog(qrCodeMessage);
-          qrScanner.stop();
-        },
-        errorMessage => {}
-      ).catch(console.error);
-    }
-
-    function toggleFlash() {
-      if (!qrScanner) return;
-      flashOn = !flashOn;
-      qrScanner.applyVideoConstraints({ advanced: [{ torch: flashOn }] }).catch(console.error);
-    }
-
-    function saveScanLog(data) {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      db.collection("patrol_logs").add({
-        uid: user.uid,
-        email: user.email,
-        data: data,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp()
-      });
-      loadLogs();
-    }
-
-    function loadLogs() {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      db.collection("patrol_logs")
-        .where("uid", "==", user.uid)
-        .orderBy("timestamp", "desc")
-        .limit(20)
-        .get()
-        .then(snapshot => {
-          const tbody = document.querySelector("#log-table tbody");
-          tbody.innerHTML = "";
-          snapshot.forEach(doc => {
-            const log = doc.data();
-            const tr = document.createElement("tr");
-            tr.innerHTML = `<td>${log.data}</td><td>${log.timestamp?.toDate().toLocaleString() || ''}</td>`;
-            tbody.appendChild(tr);
-          });
-        });
-    }
-
-    function downloadLogs() {
-      const user = auth.currentUser;
-      if (!user) return;
-
-      db.collection("patrol_logs")
-        .where("uid", "==", user.uid)
-        .orderBy("timestamp", "desc")
-        .get()
-        .then(snapshot => {
-          let csv = "Data,Waktu\n";
-          snapshot.forEach(doc => {
-            const log = doc.data();
-            const time = log.timestamp?.toDate().toLocaleString() || "";
-            csv += `${log.data},${time}\n`;
-          });
-          const blob = new Blob([csv], { type: 'text/csv' });
-          const link = document.createElement('a');
-          link.href = URL.createObjectURL(blob);
-          link.download = 'patrol_logs.csv';
-          link.click();
-        });
-    }
-  </script>
+  <div id="dashboard" class="hidden min-h-screen p-4">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold">QR Patrol Dashboard</h2>
+      <button id="logout-btn" class="bg-red-500 text-white px-3 py-1 rounded">Logout</button>
+    </div>
+    <div id="qr-reader" class="w-full max-w-md mx-auto mb-4"></div>
+    <button id="toggle-flash" class="mb-4 bg-yellow-500 text-white px-4 py-2 rounded">Toggle Flash</button>
+    <h3 class="text-lg font-semibold mt-6 mb-2">Riwayat Scan</h3>
+    <ul id="scan-log" class="space-y-2"></ul>
+  </div>
 </body>
 </html>
