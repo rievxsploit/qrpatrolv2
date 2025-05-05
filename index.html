@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>QR Patrol</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="firebase-config.js" defer></script>
+  <script src="app.js" defer></script>
+  <script>
+    // Disable right click (opsional keamanan ringan)
+    document.addEventListener('contextmenu', event => event.preventDefault());
+  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-800">
+  <div id="login-screen" class="p-4 max-w-sm mx-auto mt-10">
+    <h1 class="text-xl font-bold mb-4">QR Patrol Login</h1>
+    <input type="email" id="email" placeholder="Email" class="w-full mb-2 p-2 border rounded" />
+    <input type="password" id="password" placeholder="Password" class="w-full mb-2 p-2 border rounded" />
+    <button id="login-btn" class="w-full bg-blue-500 text-white py-2 rounded">Login</button>
+    <p id="login-error" class="text-red-500 text-sm hidden mt-2">Login gagal. Coba lagi.</p>
+  </div>
+
+  <div id="dashboard" class="hidden p-4 max-w-md mx-auto">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-semibold">QR Scanner</h2>
+      <button id="logout-btn" class="bg-red-500 text-white px-3 py-1 rounded text-sm">Logout</button>
+    </div>
+
+    <div class="mb-3">
+      <button id="toggle-flash" class="bg-yellow-500 text-white px-3 py-1 rounded text-sm">Toggle Flash</button>
+    </div>
+
+    <div id="qr-reader" class="w-full mb-4"></div>
+
+    <div class="p-2 mb-4 bg-white rounded shadow">
+      <label class="block text-sm font-medium">Rentang Tanggal:</label>
+      <div class="flex gap-2 mt-1">
+        <input type="date" id="start-date" class="border rounded p-1 w-full" />
+        <input type="date" id="end-date" class="border rounded p-1 w-full" />
+        <button onclick="exportCSV()" class="bg-blue-500 text-white px-3 py-1 rounded text-sm">Export CSV</button>
+      </div>
+    </div>
+
+    <h3 class="font-medium mb-2">Riwayat Scan:</h3>
+    <ul id="scan-log" class="space-y-2"></ul>
+  </div>
+</body>
+</html>
