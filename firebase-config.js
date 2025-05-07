@@ -1,10 +1,11 @@
 // firebase-config.js
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_AUTH_DOMAIN",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_BUCKET",
-  messagingSenderId: "YOUR_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyCZqQGh2kXFZ7ARcJi3mD-kXYGhysqet2Y",
+  authDomain: "qrpatrolv2.firebaseapp.com",
+  projectId: "qrpatrolv2",
+  storageBucket: "qrpatrolv2.firebasestorage.app",
+  messagingSenderId: "910596893170",
+  appId: "1:910596893170:web:c44ae1335d0f2b8f6fe36b",
+  measurementId: "G-JKWLJH0CP4"
 };
 firebase.initializeApp(firebaseConfig);
