@@ -1,6 +1,10 @@
-// Ganti dengan konfigurasi Firebase milikmu dari Firebase Console
+// firebase-config.js
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+import { getFirestore, collection, addDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
 const firebaseConfig = {
- apiKey: "AIzaSyCZqQGh2kXFZ7ARcJi3mD-kXYGhysqet2Y",
+  apiKey: "AIzaSyCZqQGh2kXFZ7ARcJi3mD-kXYGhysqet2Y",
   authDomain: "qrpatrolv2.firebaseapp.com",
   projectId: "qrpatrolv2",
   storageBucket: "qrpatrolv2.firebasestorage.app",
@@ -9,7 +13,8 @@ const firebaseConfig = {
   measurementId: "G-JKWLJH0CP4"
 };
 
-// Inisialisasi Firebase
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+window.firebase = { auth, db, signInWithEmailAndPassword, onAuthStateChanged, signOut, collection, addDoc, serverTimestamp };
