@@ -61,3 +61,10 @@ async function getLocation() {
     );
   });
 }
+
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("login-btn").addEventListener("click", login);
+  document.getElementById("logout-btn").addEventListener("click", logout);
+  document.getElementById("start-btn").addEventListener("click", startScan);
+});
+
