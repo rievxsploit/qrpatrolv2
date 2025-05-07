@@ -82,6 +82,7 @@
 
         await db.collection("logs").add({
           userId: user.uid,
+          userEmail: user.email,
           qrCode: data,
           timestamp,
           location: { lat: latitude, lng: longitude }
