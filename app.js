@@ -1,151 +1,63 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const loginScreen = document.getElementById("login-screen");
-  const dashboard = document.getElementById("dashboard");
-  const loginBtn = document.getElementById("login-btn");
-  const logoutBtn = document.getElementById("logout-btn");
-  const loginError = document.getElementById("login-error");
-  const toggleFlashBtn = document.getElementById("toggle-flash");
-  const scanLog = document.getElementById("scan-log");
+const loginSection = document.getElementById("login-section");
+const userSection = document.getElementById("user-section");
+const userEmail = document.getElementById("user-email");
+const scanner = document.getElementById("scanner");
 
-  let html5QrCode;
-  let flashOn = false;
-
-  loginBtn.addEventListener("click", async () => {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-    try {
-      await auth.signInWithEmailAndPassword(email, password);
-    } catch (err) {
-      loginError.classList.remove("hidden");
-    }
-  });
-
-  logoutBtn.addEventListener("click", () => {
-    auth.signOut();
-  });
-
-  toggleFlashBtn.addEventListener("click", async () => {
-    if (html5QrCode) {
-      try {
-        await html5QrCode.applyVideoConstraints({
-          advanced: [{ torch: !flashOn }]
-        });
-        flashOn = !flashOn;
-      } catch (e) {
-        alert("Flash tidak didukung pada perangkat ini.");
-      }
-    }
-  });
-
-  auth.onAuthStateChanged((user) => {
-    if (user) {
-      loginScreen.classList.add("hidden");
-      dashboard.classList.remove("hidden");
-      startScanner();
-      loadLogs(user.uid);
-    } else {
-      loginScreen.classList.remove("hidden");
-      dashboard.classList.add("hidden");
-      if (html5QrCode) {
-        html5QrCode.stop();
-      }
-    }
-  });
-
-  async function startScanner() {
-    html5QrCode = new Html5Qrcode("qr-reader");
-    const config = { fps: 10, qrbox: 250 };
-    try {
-      const devices = await Html5Qrcode.getCameras();
-      const backCamera = devices.find(d => d.label.toLowerCase().includes("back")) || devices[0];
-
-      await html5QrCode.start(
-        backCamera.id,
-        config,
-        async (decodedText) => {
-          await handleScan(decodedText);
-        }
-      );
-    } catch (err) {
-      alert("Gagal mengakses kamera: " + err);
-    }
+firebase.auth.onAuthStateChanged(user => {
+  if (user) {
+    loginSection.classList.add("hidden");
+    userSection.classList.remove("hidden");
+    scanner.classList.remove("hidden");
+    userEmail.textContent = `Logged in as ${user.email}`;
+  } else {
+    loginSection.classList.remove("hidden");
+    userSection.classList.add("hidden");
+    scanner.classList.add("hidden");
   }
-
-  async function handleScan(qrData) {
-    html5QrCode.pause();
-    if (!navigator.geolocation) {
-      alert("Geolocation tidak didukung browser ini.");
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(async (position) => {
-      const { latitude, longitude } = position.coords;
-      const log = {
-        user: auth.currentUser.uid,
-        qrData,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        location: { latitude, longitude }
-      };
-      await db.collection("scanLogs").add(log);
-      renderLog(log);
-      html5QrCode.resume();
-    }, (error) => {
-      alert("Gagal mendapatkan lokasi: " + error.message);
-      html5QrCode.resume();
-    });
-  }
-
-  function renderLog(log) {
-    const li = document.createElement("li");
-    li.className = "bg-white p-3 rounded shadow text-sm";
-    li.textContent = `${log.qrData} | Lat: ${log.location.latitude}, Lng: ${log.location.longitude}`;
-    scanLog.prepend(li);
-  }
-
-  async function loadLogs(uid) {
-    const snapshot = await db.collection("scanLogs")
-      .where("user", "==", uid)
-      .orderBy("timestamp", "desc")
-      .limit(20)
-      .get();
-
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.location) renderLog(data);
-    });
-  }
-
-  window.exportCSV = async function exportCSV() {
-    const start = document.getElementById('start-date').value;
-    const end = document.getElementById('end-date').value;
-    if (!start || !end) return alert("Pilih tanggal awal dan akhir!");
-
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    endDate.setHours(23, 59, 59, 999);
-
-    const user = auth.currentUser;
-    if (!user) return;
-
-    const snapshot = await db.collection("scanLogs")
-      .where("user", "==", user.uid)
-      .where("timestamp", ">=", startDate)
-      .where("timestamp", "<=", endDate)
-      .orderBy("timestamp", "desc")
-      .get();
-
-    const rows = [["Tanggal", "QR Code", "Latitude", "Longitude"]];
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      const date = data.timestamp?.toDate()?.toLocaleString() || "";
-      rows.push([date, data.qrData, data.location?.latitude || "", data.location?.longitude || ""]);
-    });
-
-    const csvContent = rows.map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `qr-patrol-${start}-to-${end}.csv`;
-    link.click();
-  };
 });
+
+window.login = async () => {
+  const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
+  try {
+    await firebase.signInWithEmailAndPassword(firebase.auth, email, password);
+  } catch (error) {
+    alert("Login failed: " + error.message);
+  }
+};
+
+window.logout = () => {
+  firebase.signOut(firebase.auth);
+};
+
+window.startScan = () => {
+  const qrReader = new Html5Qrcode("qr-reader");
+  qrReader.start({ facingMode: "environment" }, {
+    fps: 10,
+    qrbox: 250
+  }, async (decodedText) => {
+    qrReader.stop();
+    const position = await getLocation();
+    await firebase.addDoc(firebase.collection(firebase.db, "patrol_logs"), {
+      user: firebase.auth.currentUser.email,
+      qr: decodedText,
+      time: firebase.serverTimestamp(),
+      location: position
+    });
+    alert("Patrol recorded!");
+  }, error => {
+    console.warn(error);
+  });
+};
+
+async function getLocation() {
+  return new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      }),
+      err => resolve({ lat: null, lng: null })
+    );
+  });
+}
