@@ -23,11 +23,32 @@
 
     <!-- QR Scanner Section -->
     <div id="scanner-section" class="hidden space-y-4">
-      <div id="qr-reader" class="w-full"></div>
+      <div class="space-y-2">
+        <button onclick="toggleScanner()" class="w-full bg-green-500 text-white p-2 rounded">Mulai Scan</button>
+        <button onclick="toggleFlash()" class="w-full bg-yellow-500 text-white p-2 rounded">Toggle Flash</button>
+        <p id="scan-result" class="text-center font-semibold text-green-600"></p>
+        <div id="qr-reader" class="w-full hidden"></div>
+      </div>
       <button onclick="logout()" class="w-full bg-red-500 text-white p-2 rounded">Logout</button>
+
       <div class="bg-white p-4 rounded shadow">
         <h2 class="font-bold mb-2">Scan Log</h2>
-        <ul id="log-list" class="space-y-1 text-sm"></ul>
+        <div class="flex gap-2 mb-2">
+          <input type="date" id="start-date" class="p-2 border rounded">
+          <input type="date" id="end-date" class="p-2 border rounded">
+          <button onclick="loadLogs()" class="bg-blue-500 text-white p-2 rounded">Filter</button>
+          <button onclick="exportCSV()" class="bg-gray-500 text-white p-2 rounded">Export CSV</button>
+        </div>
+        <table class="table-auto w-full text-sm">
+          <thead>
+            <tr class="bg-gray-200">
+              <th class="px-2 py-1 border">QR Code</th>
+              <th class="px-2 py-1 border">Email</th>
+              <th class="px-2 py-1 border">Waktu</th>
+            </tr>
+          </thead>
+          <tbody id="log-list"></tbody>
+        </table>
       </div>
     </div>
   </div>
@@ -36,12 +57,13 @@
   <script>
     const auth = firebase.auth();
     const db = firebase.firestore();
+    let qrScanner;
+    let isFlashOn = false;
 
     auth.onAuthStateChanged(user => {
       if (user) {
         document.getElementById('login-section').classList.add('hidden');
         document.getElementById('scanner-section').classList.remove('hidden');
-        startScanner();
         loadLogs();
       } else {
         document.getElementById('login-section').classList.remove('hidden');
@@ -60,15 +82,37 @@
       auth.signOut();
     }
 
-    function startScanner() {
-      const qrScanner = new Html5Qrcode("qr-reader");
-      const config = { fps: 10, qrbox: 250 };
-      Html5Qrcode.getCameras().then(devices => {
+    async function toggleScanner() {
+      const qrReader = document.getElementById("qr-reader");
+      const resultText = document.getElementById("scan-result");
+      if (qrReader.classList.contains("hidden")) {
+        qrReader.classList.remove("hidden");
+        resultText.textContent = "";
+        qrScanner = new Html5Qrcode("qr-reader");
+        const devices = await Html5Qrcode.getCameras();
         const backCam = devices.find(d => d.label.toLowerCase().includes('back')) || devices[0];
-        qrScanner.start(backCam.id, config, async qrCodeMessage => {
-          await logScan(qrCodeMessage);
-        });
-      });
+        await qrScanner.start(
+          backCam.id,
+          { fps: 10, qrbox: 250, experimentalFeatures: { useBarCodeDetectorIfSupported: true } },
+          async qrCodeMessage => {
+            await logScan(qrCodeMessage);
+            resultText.textContent = "Scan Berhasil";
+            await qrScanner.stop();
+            qrReader.classList.add("hidden");
+          },
+          errorMsg => {}
+        );
+      }
+    }
+
+    async function toggleFlash() {
+      if (!qrScanner) return;
+      try {
+        isFlashOn = !isFlashOn;
+        await qrScanner.applyVideoConstraints({ advanced: [{ torch: isFlashOn }] });
+      } catch (err) {
+        alert("Flashlight tidak tersedia di perangkat ini.");
+      }
     }
 
     async function logScan(data) {
@@ -95,19 +139,43 @@
 
     function loadLogs() {
       const user = auth.currentUser;
-      db.collection("logs").where("userId", "==", user.uid)
-        .orderBy("timestamp", "desc")
-        .limit(10).get().then(snapshot => {
-          const list = document.getElementById("log-list");
-          list.innerHTML = "";
-          snapshot.forEach(doc => {
-            const log = doc.data();
-            const li = document.createElement("li");
-            li.textContent = `${log.qrCode} - ${new Date(log.timestamp.seconds * 1000).toLocaleString()}
-(${log.userEmail})`;
-            list.appendChild(li);
-          });
+      const list = document.getElementById("log-list");
+      list.innerHTML = "";
+      let query = db.collection("logs").where("userId", "==", user.uid);
+
+      const start = document.getElementById("start-date").value;
+      const end = document.getElementById("end-date").value;
+
+      if (start) query = query.where("timestamp", ">=", new Date(start));
+      if (end) {
+        const endDate = new Date(end);
+        endDate.setDate(endDate.getDate() + 1);
+        query = query.where("timestamp", "<", endDate);
+      }
+
+      query.orderBy("timestamp", "desc").limit(50).get().then(snapshot => {
+        snapshot.forEach(doc => {
+          const log = doc.data();
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td class="border px-2 py-1">${log.qrCode}</td>
+            <td class="border px-2 py-1">${log.userEmail}</td>
+            <td class="border px-2 py-1">${new Date(log.timestamp.seconds * 1000).toLocaleString()}</td>`;
+          list.appendChild(row);
         });
+      });
+    }
+
+    function exportCSV() {
+      const rows = Array.from(document.querySelectorAll("#log-list tr"));
+      const csv = rows.map(row =>
+        Array.from(row.children).map(cell => `"${cell.textContent}"`).join(",")
+      ).join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "logs.csv";
+      link.click();
     }
   </script>
 </body>
